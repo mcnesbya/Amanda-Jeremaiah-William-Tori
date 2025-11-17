@@ -38,6 +38,10 @@ def get_athletes_activities():
 
         return all_data
 
+def get_all_activities():
+    with get_connection() as conn:
+        activity_rows = conn.execute("SELECT * FROM DailyMileage").fetchall()
+        return [dict(row) for row in activity_rows]
     
 
     

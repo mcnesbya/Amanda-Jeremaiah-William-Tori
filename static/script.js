@@ -39,8 +39,17 @@ function getDayName(date) {
 // Takes the raw data and processes it for a specific week
 function processDataForWeek(weekStart) {
     // The /data endpoint returns a *list* of athletes.
-    // This UI is for one athlete, so we'll just use the first one.
-    const athlete = allAthleteData[0];
+    // This UI is for one athlete. Try to find Tori, otherwise use the last athlete added.
+    let athlete = allAthleteData.find(a => 
+        (a.first_name && a.first_name.toLowerCase() === 'tori') || 
+        (a.first_name && a.last_name && `${a.first_name} ${a.last_name}`.toLowerCase().includes('tori'))
+    );
+    
+    // If Tori not found, use the last athlete (most recently added)
+    if (!athlete && allAthleteData.length > 0) {
+        athlete = allAthleteData[allAthleteData.length - 1];
+    }
+    
     if (!athlete) {
         // Return an empty structure if no data
         return { goal: 0, daily_mileage: {}, total: 0, remaining: 0 };
