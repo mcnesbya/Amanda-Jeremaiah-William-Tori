@@ -5,7 +5,7 @@ yum install -y git python3 python3-pip
 
 # 2. Clone into the home directory of the current user (ec2-user)
 # Remove the existing directory if it's there
-sudo rm -rf Amanda-Jeremaiah-William-Tori 
+sudo rm -rf /opt/Amanda-Jeremaiah-William-Tori 
 git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git /opt/Amanda-Jeremaiah-William-Tori
 
 
