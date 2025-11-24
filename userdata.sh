@@ -6,11 +6,11 @@ yum install -y git python3 python3-pip
 # 2. Clone into the home directory of the current user (ec2-user)
 # Remove the existing directory if it's there
 rm -rf Amanda-Jeremaiah-William-Tori 
-git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git /home/ec2-user/Amanda-Jeremaiah-William-Tori
+git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git /opt/Amanda-Jeremaiah-William-Tori
 
 
 # 4. Change into the correct directory
-cd /home/ec2-user/Amanda-Jeremaiah-William-Tori
+cd /opt/Amanda-Jeremaiah-William-Tori
 
 # 5. Create virtual environment and install dependencies
 python3 -m venv .venv

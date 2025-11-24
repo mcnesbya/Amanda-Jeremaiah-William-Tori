@@ -8,9 +8,9 @@ Wants=network-online.target
 User=ec2-user
 Group=ec2-user
 # Use the new, clear installation directory
-WorkingDirectory=/home/ec2-user/Amanda-Jeremaiah-William-Tori
+WorkingDirectory=/opt/Amanda-Jeremaiah-William-Tori
 # Use the new, clear installation directory
-ExecStart=/home/ec2-user/Amanda-Jeremaiah-William-Tori/.venv/bin/gunicorn \
+ExecStart=/opt/Amanda-Jeremaiah-William-Tori/.venv/bin/gunicorn \
           --bind 0.0.0.0:80 \
           --workers 4 \
           app:app
