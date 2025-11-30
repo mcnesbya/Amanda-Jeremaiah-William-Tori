@@ -87,7 +87,7 @@ def get_user_by_username(username):
     return dict(row) if row else None
 
 
-def create_user(username, password, strava_athlete_id, strava_access_token, strava_refresh_token):
+def create_user(username, password, strava_athlete_id, client_secret, strava_refresh_token):
     """Create a new user. Returns the new user's ID."""
     # Hash the password using werkzeug's secure hashing
     #should probably hash the tokens, but need to find a way to retrieve them later
@@ -100,8 +100,8 @@ def create_user(username, password, strava_athlete_id, strava_access_token, stra
     
     try:
         cursor.execute(
-            "INSERT INTO Users (username, password_hash, strava_athlete_id, strava_access_token, strava_refresh_token) VALUES (?, ?, ?, ?, ?)",
-            (username, hashed_pw, strava_athlete_id, strava_access_token, strava_refresh_token)
+            "INSERT INTO Users (username, password_hash, strava_athlete_id, client_secret, strava_refresh_token) VALUES (?, ?, ?, ?, ?)",
+            (username, hashed_pw, strava_athlete_id, client_secret, strava_refresh_token)
         )
         user_id = cursor.lastrowid
         conn.commit()
@@ -131,12 +131,12 @@ def user_has_strava(user_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT strava_access_token FROM Users WHERE id = ?",
+        "SELECT client_secret FROM Users WHERE id = ?",
         (user_id,)
     )
     row = cursor.fetchone()
     conn.close()
-    return row is not None and row['strava_access_token'] is not None
+    return row is not None and row['client_secret'] is not None
 
 def user_login(username, password):
     """Login a user. Returns True/False."""
@@ -242,6 +242,18 @@ def set_mileage_goal(username, mileage_goal):
     conn.commit()
     conn.close()
 
+def activity_exists(user_id, date, distance, activity_title):
+    """Check if an activity already exists. Returns True/False."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT activity_id FROM DailyMileage WHERE user_id = ? AND date = ? AND distance = ? AND activity_title = ?",
+        (user_id, date, distance, activity_title)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
 # def save_user_tokens(user_id, tokens):
 #     """Save Strava tokens to user. tokens is a dict with access_token, refresh_token, expires_at, athlete.id"""
 #     conn = get_connection()
@@ -267,18 +279,18 @@ def set_mileage_goal(username, mileage_goal):
 
 # ACTIVITY METHODS
 
-# def get_activities_for_user(user_id):
-#     """Get all activities for a user. Returns list of dicts."""
-#     conn = get_connection()
-#     cursor = conn.cursor()
-#     cursor.execute(
-#         """SELECT activity_id, date, distance, activity_title 
-#            FROM DailyMileage 
-#            WHERE user_id = ? 
-#            ORDER BY date DESC""",
-#         (user_id,)
-#     )
-#     rows = cursor.fetchall()
-#     conn.close()
-#     return [dict(row) for row in rows]
+def get_activities_for_user(user_id):
+    """Get all activities for a user. Returns list of dicts."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT activity_id, date, distance, activity_title 
+           FROM DailyMileage 
+           WHERE user_id = ? 
+           ORDER BY date DESC""",
+        (user_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 

@@ -237,58 +237,41 @@ async function initializePage() {
     // Show loading status
     status.className = 'status loading';
     status.style.display = 'block';
-    status.textContent = 'Loading athlete data from /data...';
+    status.textContent = 'Loading your activities...';
 
     try {
-        // 1. Fetch activities from /data endpoint
-        const response = await fetch('/data'); // This returns flat list of activities
+        // 1. Fetch activities from /api/activities endpoint
+        const response = await fetch('/api/activities');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const activities = await response.json(); // Get flat list of activities
+        const data = await response.json(); // Get {activities: [...], mileage_goal: number, long_run_goal: number}
+        const activities = data.activities || [];
+        const mileageGoal = data.mileage_goal || 0;
+        const longRunGoal = data.long_run_goal || 0;
         
-        // Check if we got any data
-        if (!activities || activities.length === 0) {
-            throw new Error("No activity data found from /data endpoint.");
-        }
+        // 2. Transform activities into the athlete structure expected by processDataForWeek
+        // Since we're working with a single user, create one athlete object
+        const mileage = activities.map(activity => ({
+            date: activity.date,  // Already in YYYY-MM-DD format
+            distance: activity.distance  // Already in miles
+        }));
         
-        // 2. Transform activities into athlete structure
-        allAthleteData = transformActivitiesToAthletes(activities);
-        
-        // 3. Try to fetch athlete metadata to enrich the data
-        try {
-            const athletesResponse = await fetch('/athletes'); // Assuming this endpoint exists, or we'll create it
-            if (athletesResponse.ok) {
-                const athletesInfo = await athletesResponse.json();
-                // Merge athlete info with activities
-                allAthleteData = allAthleteData.map(athlete => {
-                    const athleteInfo = athletesInfo.find(a => a.athlete_id === athlete.athlete_id);
-                    if (athleteInfo) {
-                        return {
-                            ...athlete,
-                            first_name: athleteInfo.first_name,
-                            last_name: athleteInfo.last_name,
-                            mileage_goal: athleteInfo.mileage_goal || 0,
-                            long_run_goal: athleteInfo.long_run_goal || 0
-                        };
-                    }
-                    return athlete;
-                });
-            }
-        } catch (e) {
-            // If we can't fetch athlete info, continue with defaults
-            console.log("Could not fetch athlete metadata, using defaults");
-        }
-        
-        // Check if we have any athlete data after transformation
-        if (!allAthleteData || allAthleteData.length === 0) {
-            throw new Error("No athlete data found after processing activities.");
-        }
+        // Create a single athlete object for the current user
+        allAthleteData = [{
+            mileage: mileage,
+            mileage_goal: mileageGoal,
+            long_run_goal: longRunGoal,
+            first_name: null,
+            last_name: null
+        }];
         
         // Debug: Log the transformed data
+        console.log("Loaded activities:", activities.length);
+        console.log("Mileage goal:", mileageGoal);
+        console.log("Long run goal:", longRunGoal);
         console.log("Transformed athlete data:", allAthleteData);
-        console.log("First athlete mileage count:", allAthleteData[0]?.mileage?.length || 0);
 
         // 2. Populate week dropdown (same as before)
         const currentWeekStart = getWeekStart();

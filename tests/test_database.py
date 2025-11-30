@@ -33,7 +33,7 @@ def test_init_db():
 def test_create_user():
     """Test that create_user creates a new user in the database."""
     database.init_db()
-    database.create_user('testuser', 'testpassword', 1234567890, 'testaccess', 'testrefresh')
+    database.create_user('testuser', 'testpassword', 1234567890, 'testkey', 'testrefresh')
     conn = database.get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM Users")
@@ -181,3 +181,11 @@ def test_get_activity_distance_by_date():
     database.create_user('testuser', 'testpassword', 1234567890, 'testaccess', 'testrefresh')
     database.create_activity(database.get_user_id_from_username('testuser'), '2025-01-01', 10.0, 'testactivity')
     assert database.get_activity_distance_by_date('2025-01-01') == 10.0
+
+def test_activity_exists():
+    """Test that the activity_exists function returns True if the activity exists, False if not."""
+    database.init_db()
+    database.create_user('testuser', 'testpassword', 1234567890, 'testaccess', 'testrefresh')
+    database.create_activity(database.get_user_id_from_username('testuser'), '2025-01-01', 10.0, 'testactivity')
+    assert database.activity_exists(database.get_user_id_from_username('testuser'), '2025-01-01', 10.0, 'testactivity') is True
+    assert database.activity_exists(database.get_user_id_from_username('testuser'), '2025-01-01', 10.0, 'testactivity2') is False

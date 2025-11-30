@@ -1,5 +1,6 @@
 import os
 import threading
+import logging
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,7 +8,11 @@ from dotenv import load_dotenv
 
 
 import database  
-import collector 
+import collector
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__) 
 
 load_dotenv()
 
@@ -86,6 +91,26 @@ def login_action():
     if user_row and is_a_user:
         user_obj = User(id=user_row['id'], username=user_row['username'])
         login_user(user_obj)
+        
+        # Sync activities in background thread (non-blocking)
+        def sync_activities():
+            try:
+                date = database.get_most_recent_activity_date_by_username(username)
+                if date:
+                    collector.add_new_activities_to_db(username, date)
+                    logger.info(f"Successfully synced new activities for user: {username}")
+                else:
+                    collector.add_initial_activities_to_db(username)
+                    logger.info(f"Successfully synced initial activities for user: {username}")
+            except Exception as e:
+                # Log error but don't prevent login
+                logger.error(f"Error syncing activities for {username}: {e}", exc_info=True)
+        
+        # Start sync in background thread
+        sync_thread = threading.Thread(target=sync_activities)
+        sync_thread.start()
+        
+        flash("Logged in successfully. Activity sync in progress...", "info")
         return redirect(url_for('dashboard'))
         
     flash("Invalid credentials")
@@ -112,6 +137,58 @@ def register_action():
         # Log them in immediately
         user_obj = User(id=new_user_id, username=username)
         login_user(user_obj)
+        
+        # Sync athlete info and activities in background thread (non-blocking)
+        def sync_strava_data():
+            try:
+                logger.info(f"=== Starting Strava sync for user: {username} ===")
+                
+                # Create athlete row first if it doesn't exist
+                athlete_row = database.get_row_from_athletes_table(username)
+                if not athlete_row:
+                    logger.info(f"Creating athlete row for user: {username}")
+                    database.create_athlete_at_registration(username)
+                else:
+                    logger.info(f"Athlete row already exists for user: {username}")
+                
+                # Verify credentials exist before proceeding
+                client_id = database.get_client_id_from_username(username)
+                client_secret = database.get_client_secret_by_username(username)
+                refresh_token = database.get_refresh_token_by_username(username)
+                
+                logger.info(f"Credentials check - client_id: {client_id}, has_secret: {bool(client_secret)}, has_refresh: {bool(refresh_token)}")
+                
+                if not all([client_id, client_secret, refresh_token]):
+                    raise ValueError(f'Missing Strava credentials - client_id: {bool(client_id)}, secret: {bool(client_secret)}, refresh: {bool(refresh_token)}')
+                
+                # Try to update athlete info (non-blocking - if it fails, continue to activities)
+                try:
+                    logger.info(f"Updating athlete info for user: {username}")
+                    collector.update_athlete_info_in_db(username)
+                    logger.info(f"Successfully updated athlete info for user: {username}")
+                except Exception as e:
+                    logger.warning(f"Failed to update athlete info for {username}: {e}. Continuing to fetch activities...")
+                
+                # Fetch activities (this is the important part)
+                logger.info(f"Fetching initial activities for user: {username}")
+                collector.add_initial_activities_to_db(username)
+                logger.info(f"Successfully synced initial activities for user: {username}")
+                logger.info(f"=== Completed Strava sync for user: {username} ===")
+            except Exception as e:
+                # Log error but don't prevent registration/login
+                logger.error(f"ERROR syncing Strava data for {username}: {e}", exc_info=True)
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
+                print(f"ERROR in background thread: {e}")
+                print(traceback.format_exc())
+        
+        # Start sync in background thread
+        sync_thread = threading.Thread(target=sync_strava_data, daemon=True)
+        sync_thread.start()
+        logger.info(f"Started background thread for Strava sync (thread ID: {sync_thread.ident})")
+        print(f"DEBUG: Started background thread for user: {username}")
+        
+        flash("Registration successful! Syncing your Strava data...", "info")
         return redirect(url_for('dashboard'))
         
     except ValueError as e:
@@ -188,12 +265,75 @@ def strava_callback():
 @login_required
 def get_activities_data():
     """
-    Used by script.js to draw the charts.
+    API endpoint for dashboard data.
+    Returns all activities, mileage goal, and long run goal for the current user as JSON.
+    Used by script.js to populate the mileage tracker.
     """
-    # Query the database for runs from the current user denoted by the login session stuff
+    # Get current user's activities from database
     activities = database.get_activities_for_user(current_user.id)
+    logger.info(f"API: Returning {len(activities)} activities for user: {current_user.username} (ID: {current_user.id})")
     
-    return jsonify(activities)
+    # Get mileage goal and long run goal from Athletes table
+    athlete_row = database.get_row_from_athletes_table(current_user.username)
+    mileage_goal = athlete_row.get('mileage_goal', 0) if athlete_row else 0
+    long_run_goal = athlete_row.get('long_run_goal', 0) if athlete_row else 0
+    
+    # Return JSON response with activities and goals
+    return jsonify({
+        'activities': activities,
+        'mileage_goal': mileage_goal,
+        'long_run_goal': long_run_goal
+    })
+
+@app.route('/api/debug/sync')
+@login_required
+def manual_sync():
+    """
+    Debug endpoint to manually trigger Strava sync.
+    Useful for testing if background thread isn't working.
+    """
+    username = current_user.username
+    logger.info(f"Manual sync triggered for user: {username}")
+    
+    try:
+        # Create athlete row first if it doesn't exist
+        athlete_row = database.get_row_from_athletes_table(username)
+        if not athlete_row:
+            logger.info(f"Creating athlete row for user: {username}")
+            database.create_athlete_at_registration(username)
+        
+        # Verify credentials exist
+        client_id = database.get_client_id_from_username(username)
+        client_secret = database.get_client_secret_by_username(username)
+        refresh_token = database.get_refresh_token_by_username(username)
+        
+        if not all([client_id, client_secret, refresh_token]):
+            return jsonify({
+                'error': 'Missing Strava credentials',
+                'has_client_id': bool(client_id),
+                'has_secret': bool(client_secret),
+                'has_refresh': bool(refresh_token)
+            }), 400
+        
+        # Update athlete info and fetch activities
+        collector.update_athlete_info_in_db(username)
+        collector.add_initial_activities_to_db(username)
+        
+        # Get updated activities count
+        activities = database.get_activities_for_user(current_user.id)
+        
+        return jsonify({
+            'success': True,
+            'activities_count': len(activities),
+            'message': f'Successfully synced {len(activities)} activities'
+        })
+    except Exception as e:
+        logger.error(f"Error in manual sync: {e}", exc_info=True)
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 if __name__ == "__main__":
     # Ensure DB tables exist before starting

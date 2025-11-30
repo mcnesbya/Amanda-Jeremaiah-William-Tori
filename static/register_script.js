@@ -24,29 +24,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 redirect: 'follow' // Allow fetch to follow redirects
             })
             .then(async response => {
-                // Check if it's an error status (4xx or 5xx)
-                if (!response.ok) {
-                    console.log('Response is not OK, trying to parse error');
-                    // Error response - try to get JSON error message
-                    try {
-                        const data = await response.json();
-                        console.log('Got JSON error:', data);
-                        alert('Error: ' + (data.error || 'Registration failed'));
-                        return;
-                    } catch (e) {
-                        console.log('Failed to parse JSON, got error:', e);
-                        // Not JSON, show generic error
-                        alert('Error: Registration failed. Please try again.');
-                        return;
-                    }
+                // Check if response was redirected (success case)
+                if (response.redirected || response.status === 200) {
+                    // Success - redirect to dashboard
+                    window.location.href = '/';
+                    return;
                 }
                 
-                console.log('Response is OK, redirecting to dashboard');
-                // If we get here, response is OK (200-299)
-                // This means either:
-                // 1. Redirect was followed and we got the dashboard HTML (success!)
-                // 2. Some other successful response
-                // In either case, redirect to dashboard
+                // Check if it's an error status (4xx or 5xx)
+                if (!response.ok) {
+                    // Try to get error message - check content type first
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        // It's JSON, parse it
+                        try {
+                            const data = await response.json();
+                            alert('Error: ' + (data.error || 'Registration failed'));
+                            return;
+                        } catch (e) {
+                            console.error('Failed to parse JSON error:', e);
+                        }
+                    }
+                    // Not JSON (probably HTML error page), show generic error
+                    alert('Error: Registration failed. Please try again.');
+                    return;
+                }
+                
+                // If we get here and response is OK, redirect anyway
                 window.location.href = '/';
             })
             .catch(error => {
