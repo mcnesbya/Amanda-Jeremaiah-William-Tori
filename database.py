@@ -12,9 +12,9 @@ def init_db():
         
         #Resetting the tables each time collector is run to maintain known state
         #these 3 lines will be commented out when we are done testing
-        #cursor.execute("DROP TABLE IF EXISTS Users")
-        #cursor.execute("DROP TABLE IF EXISTS DailyMileage")
-        #cursor.execute("DROP TABLE IF EXISTS Athletes")
+        cursor.execute("DROP TABLE IF EXISTS Users")
+        cursor.execute("DROP TABLE IF EXISTS DailyMileage")
+        cursor.execute("DROP TABLE IF EXISTS Athletes")
         
         # User table
         cursor.execute("""
@@ -35,9 +35,6 @@ def init_db():
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS  Athletes (
             user_id INTEGER PRIMARY KEY,
-            first_name VARCHAR(50),
-            last_name VARCHAR(50),
-            gender TEXT CHECK(gender IN ('M', 'F', 'O')) DEFAULT 'O',
             mileage_goal REAL,
             long_run_goal REAL,
             FOREIGN KEY (user_id) REFERENCES Users(id)
@@ -184,10 +181,13 @@ def save_user_tokens_and_info(user_id, access_token, refresh_token, expires_at, 
         (strava_id, access_token, refresh_token, expires_at, user_id)
     )
 
+    # Note: Athletes table only stores user_id, mileage_goal, and long_run_goal
+    # The athlete record should already exist from registration with goals
+    # We don't need to update it here - just ensure it exists
     cursor.execute(
-        """INSERT OR REPLACE INTO Athletes (user_id, first_name, last_name, gender)
-           VALUES (?, ?, ?, ?)""",
-        (user_id, first_name, last_name, gender)
+        """INSERT OR IGNORE INTO Athletes (user_id, mileage_goal, long_run_goal)
+           VALUES (?, 0, 0)""",
+        (user_id,)
     )
 
     conn.commit()
@@ -200,6 +200,17 @@ def create_activity(user_id, date, distance, title):
     conn.execute(
         "INSERT OR IGNORE INTO DailyMileage (user_id, date, distance, activity_title) VALUES (?, ?, ?, ?)", 
         (user_id, date, distance, title)
+    )
+    conn.commit()
+    conn.close()
+
+def create_athlete_with_goals(user_id, mileage_goal, long_run_goal):
+    """Create an athlete record with goals. Returns None."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO Athletes (user_id, mileage_goal, long_run_goal) VALUES (?, ?, ?)",
+        (user_id, mileage_goal, long_run_goal)
     )
     conn.commit()
     conn.close()

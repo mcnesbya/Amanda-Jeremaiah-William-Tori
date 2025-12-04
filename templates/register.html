@@ -24,11 +24,16 @@
                     <label for="password">Password:</label>
                     <input type="password" id="password" name="password" required>
                 </div>
-                
-                <!-- <div class="form-group">
-                    <label for="tokenExpiration">Token Expiration:</label>
-                    <input type="datetime-local" id="tokenExpiration" name="tokenExpiration" required>
-                </div> -->
+
+                <div class="form-group">
+                    <label for="long_run">Long Run Goal:</label>
+                    <input type="number" id="long_run" name="long_run" step="0.01" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="mileage">Mileage Goal:</label>
+                    <input type="number" id="mileage" name="mileage" step="0.01" min="0" required>
+                </div>
                 
                 <div class="form-actions">
                     <button type="submit" class="submit-btn">Register</button>

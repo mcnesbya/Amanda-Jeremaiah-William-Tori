@@ -92,6 +92,8 @@ def login_action():
 def register_action():
     username = request.form.get('username')
     password = request.form.get('password')
+    mileage_goal = request.form.get('mileage')
+    long_run_goal = request.form.get('long_run')
     
     # Save to DB (password will be hashed inside create_user)
     try:
@@ -99,6 +101,16 @@ def register_action():
             username, 
             password
         )
+        
+        # Create athlete record with goals
+        if mileage_goal and long_run_goal:
+            try:
+                mileage_goal = float(mileage_goal)
+                long_run_goal = float(long_run_goal)
+                database.create_athlete_with_goals(new_user_id, mileage_goal, long_run_goal)
+            except (ValueError, TypeError) as e:
+                print(f"Error parsing goals: {e}")
+                # Continue with registration even if goals fail
         
         # Log them in immediately
         user_obj = User(id=new_user_id, username=username)
@@ -172,7 +184,7 @@ def get_activities_data():
     activities = database.get_activities_for_user(current_user.id)
     logger.info(f"API: Returning {len(activities)} activities for user: {current_user.username} (ID: {current_user.id})")
     
-    athlete_row = database.get_row_from_athletes_table(current_user.username)
+    athlete_row = database.get_row_from_athletes_table(current_user.id)
     mileage_goal = athlete_row.get('mileage_goal', 0) if athlete_row else 0
     long_run_goal = athlete_row.get('long_run_goal', 0) if athlete_row else 0
     has_strava = database.user_has_strava(current_user.id)
